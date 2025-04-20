@@ -520,28 +520,37 @@
         });
         
         // Obsługa generowania linku instalacyjnego
-        generateLinkBtn.addEventListener('click', () => {
-            const checkedLists = document.querySelectorAll('#userLists input[type="checkbox"]:checked');
-            const selectedSlugs = Array.from(checkedLists).map(checkbox => checkbox.dataset.slug);
-            
-            if (selectedSlugs.length === 0) {
-                showError('Wybierz co najmniej jedną listę');
-                return;
-            }
-            
-            debug(`Generowanie linku dla wybranych list: ${selectedSlugs.join(', ')}`);
-            
-            // Łączymy slugi za pomocą przecinka
-            const slugsParam = selectedSlugs.join(',');
-            
-            // Tworzymy link instalacyjny dla Fusion
-            const installUrl = `https://${BACKEND_URL}/manifest.json?listSlug=${encodeURIComponent(slugsParam)}`;
-            debug(`Wygenerowany link: ${installUrl}`);
-            
-            // Wyświetlamy wynik
-            installLinkDiv.textContent = installUrl;
-            resultSection.style.display = 'block';
-        });
+        // Zmodyfikowana część kodu JavaScript z index.html
+
+// Funkcja generowania linku instalacyjnego z kluczem API
+generateLinkBtn.addEventListener('click', () => {
+    const apiKey = apiKeyInput.value.trim();
+    const checkedLists = document.querySelectorAll('#userLists input[type="checkbox"]:checked');
+    const selectedSlugs = Array.from(checkedLists).map(checkbox => checkbox.dataset.slug);
+    
+    if (selectedSlugs.length === 0) {
+        showError('Wybierz co najmniej jedną listę');
+        return;
+    }
+    
+    if (!apiKey) {
+        showError('Klucz API jest wymagany');
+        return;
+    }
+    
+    debug(`Generowanie linku dla wybranych list: ${selectedSlugs.join(', ')}`);
+    
+    // Łączymy slugi za pomocą przecinka
+    const slugsParam = selectedSlugs.join(',');
+    
+    // Tworzymy link instalacyjny dla Fusion, dodając klucz API
+    const installUrl = `https://${BACKEND_URL}/manifest.json?listSlug=${encodeURIComponent(slugsParam)}&apiKey=${encodeURIComponent(apiKey)}`;
+    debug(`Wygenerowany link: ${installUrl}`);
+    
+    // Wyświetlamy wynik
+    installLinkDiv.textContent = installUrl;
+    resultSection.style.display = 'block';
+});
         
         // Obsługa kopiowania linku do schowka
         copyLinkBtn.addEventListener('click', () => {
