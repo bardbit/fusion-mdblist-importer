@@ -5,8 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "nodemon index.js"
   },
   "keywords": [
     "stremio",
@@ -16,11 +15,10 @@
     "movies",
     "series"
   ],
-  "author": "Użytkownik Fusion",
+  "author": "Fusion User",
   "license": "MIT",
   "dependencies": {
     "cors": "^2.8.5",
-    "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "node-fetch": "^2.6.12",
     "stremio-addon-sdk": "^1.6.10"
