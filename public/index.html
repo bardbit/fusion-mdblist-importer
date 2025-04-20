@@ -177,6 +177,17 @@
             font-size: 12px;
             margin-left: 8px;
         }
+        
+        #debugInfo {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f0f0f0;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -220,11 +231,13 @@
             
             <button id="copyLinkBtn" class="copy-btn">Kopiuj link</button>
         </div>
+        
+        <div id="debugInfo"></div>
     </div>
     
     <script>
         // Stałe konfiguracyjne
-        const BACKEND_URL = 'https://fusion-mdblist-importer.pages.dev'; // Adres backendu
+        const BACKEND_URL = 'https://mdblist-api-worker.yourusername.workers.dev'; // Adres Workera Cloudflare
         const PROXY_ENDPOINT = '/api/get-user-lists'; // Endpoint proxy
         
         // Referencje do elementów DOM
@@ -240,19 +253,94 @@
         const resultSection = document.getElementById('resultSection');
         const installLinkDiv = document.getElementById('installLink');
         const copyLinkBtn = document.getElementById('copyLinkBtn');
+        const debugInfoDiv = document.getElementById('debugInfo');
+        
+        // Włącz tryb debugowania (ustaw na true aby włączyć)
+        const DEBUG_MODE = true;
         
         // Zmienne globalne
         let userLists = [];
+        
+        // Funkcje debugowania
+        function debug(message, data = null) {
+            if (!DEBUG_MODE) return;
+            
+            const timestamp = new Date().toISOString();
+            let logMessage = `[${timestamp}] ${message}`;
+            
+            if (data) {
+                try {
+                    if (typeof data === 'object') {
+                        logMessage += '\n' + JSON.stringify(data, null, 2);
+                    } else {
+                        logMessage += '\n' + data;
+                    }
+                } catch (e) {
+                    logMessage += '\n[Error stringifying data]: ' + e.message;
+                }
+            }
+            
+            console.log(logMessage);
+            
+            // Dodaj do elementu debugInfo
+            debugInfoDiv.style.display = 'block';
+            debugInfoDiv.textContent += logMessage + '\n\n';
+            debugInfoDiv.scrollTop = debugInfoDiv.scrollHeight;
+        }
         
         // Funkcje pomocnicze
         function showError(message) {
             errorMessage.textContent = message;
             errorMessage.style.display = 'block';
             loadingSpinner.style.display = 'none';
+            debug('ERROR: ' + message);
         }
         
         function hideError() {
             errorMessage.style.display = 'none';
+        }
+        
+        // Obsługa bezpośredniego dostępu do API MDBlist (alternatywne rozwiązanie)
+        async function fetchUserListsDirectly(apiKey) {
+            debug('Próba bezpośredniego pobrania list użytkownika z MDBlist API');
+            
+            // Używamy CORS proxy, aby ominąć ograniczenia CORS
+            const corsProxyUrl = 'https://cors-anywhere.herokuapp.com/';
+            const mdblistApiUrl = 'https://mdblist.com/api/lists/user';
+            
+            try {
+                const response = await fetch(corsProxyUrl + mdblistApiUrl, {
+                    method: 'GET',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest', // Wymagane przez cors-anywhere
+                        'apikey': apiKey
+                    }
+                });
+                
+                debug(`Status odpowiedzi: ${response.status}`);
+                
+                const responseText = await response.text();
+                debug(`Surowa odpowiedź: ${responseText.substring(0, 500)}...`);
+                
+                if (!responseText) {
+                    throw new Error('Otrzymano pustą odpowiedź z API');
+                }
+                
+                const data = JSON.parse(responseText);
+                
+                if (!response.ok) {
+                    throw new Error(data.message || `Błąd HTTP: ${response.status}`);
+                }
+                
+                if (!data.lists || data.lists.length === 0) {
+                    throw new Error('Nie znaleziono żadnych list dla tego klucza API');
+                }
+                
+                return data.lists;
+            } catch (error) {
+                debug('Błąd podczas bezpośredniego dostępu do API:', error);
+                throw error;
+            }
         }
         
         // Obsługa ładowania list użytkownika
@@ -269,28 +357,76 @@
             listsContainer.style.display = 'none';
             resultSection.style.display = 'none';
             
+            if (DEBUG_MODE) {
+                debugInfoDiv.textContent = ''; // Wyczyść poprzednie logi
+                debugInfoDiv.style.display = 'block';
+            }
+            
+            debug(`Rozpoczęcie pobierania list z kluczem API: ${apiKey.substring(0, 3)}...`);
+            
             try {
-                // Wysyłamy żądanie do backendu (proxy)
-                const response = await fetch(`${BACKEND_URL}${PROXY_ENDPOINT}`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ apiKey })
-                });
+                let success = false;
+                let lists = [];
                 
-                const data = await response.json();
-                
-                if (!response.ok) {
-                    throw new Error(data.error || 'Nie udało się pobrać list');
+                // Najpierw próbujemy przez naszego Workera
+                try {
+                    debug(`Wysyłanie zapytania do: ${BACKEND_URL}${PROXY_ENDPOINT}`);
+                    
+                    const response = await fetch(`${BACKEND_URL}${PROXY_ENDPOINT}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ apiKey })
+                    });
+                    
+                    debug(`Status odpowiedzi: ${response.status}`);
+                    debug(`Nagłówki odpowiedzi: ${JSON.stringify([...response.headers.entries()])}`);
+                    
+                    const responseText = await response.text();
+                    debug(`Surowa odpowiedź: ${responseText.substring(0, 500)}...`);
+                    
+                    if (!responseText) {
+                        throw new Error('Otrzymano pustą odpowiedź z API');
+                    }
+                    
+                    const data = JSON.parse(responseText);
+                    
+                    if (!response.ok) {
+                        throw new Error(data.error || `Błąd HTTP: ${response.status}`);
+                    }
+                    
+                    if (!data.lists || data.lists.length === 0) {
+                        throw new Error('Nie znaleziono żadnych list dla tego klucza API');
+                    }
+                    
+                    lists = data.lists;
+                    success = true;
+                    debug('Pomyślnie pobrano listy przez Workera');
+                } catch (workerError) {
+                    debug('Błąd podczas korzystania z Workera:', workerError);
+                    debug('Próba alternatywnego podejścia z CORS proxy');
+                    
+                    // W przypadku niepowodzenia, próbujemy bezpośredniego dostępu
+                    if (!success) {
+                        try {
+                            lists = await fetchUserListsDirectly(apiKey);
+                            success = true;
+                            debug('Pomyślnie pobrano listy przez CORS proxy');
+                        } catch (directError) {
+                            debug('Błąd również przy bezpośrednim dostępie:', directError);
+                            throw new Error('Nie udało się pobrać list. Spróbuj ponownie później.');
+                        }
+                    }
                 }
                 
-                if (!data.lists || data.lists.length === 0) {
-                    throw new Error('Nie znaleziono żadnych list dla tego klucza API');
+                if (!success) {
+                    throw new Error('Nie udało się pobrać list. Spróbuj ponownie później.');
                 }
                 
                 // Zapisujemy pobrane listy
-                userLists = data.lists;
+                userLists = lists;
+                debug(`Pobrano ${userLists.length} list`);
                 
                 // Wyświetlamy listy użytkownika
                 displayUserLists(userLists);
@@ -300,12 +436,14 @@
                 listsContainer.style.display = 'block';
                 
             } catch (error) {
+                console.error('Szczegóły błędu:', error);
                 showError(error.message || 'Wystąpił błąd podczas ładowania list');
             }
         });
         
         // Funkcja wyświetlająca listy użytkownika
         function displayUserLists(lists) {
+            debug(`Wyświetlanie ${lists.length} list użytkownika`);
             userListsDiv.innerHTML = '';
             
             lists.forEach(list => {
@@ -314,8 +452,8 @@
                 
                 const checkbox = document.createElement('input');
                 checkbox.type = 'checkbox';
-                checkbox.id = `list-${list.slug}`;
-                checkbox.dataset.slug = list.slug;
+                checkbox.id = `list-${list.slug || list.id}`;
+                checkbox.dataset.slug = list.slug || list.id;
                 checkbox.addEventListener('change', updateGenerateButtonState);
                 
                 const listDetails = document.createElement('div');
@@ -323,18 +461,18 @@
                 
                 const listTitle = document.createElement('div');
                 listTitle.className = 'list-title';
-                listTitle.textContent = list.name;
+                listTitle.textContent = list.name || list.title;
                 
-                if (list.count) {
+                if (list.count || list.items) {
                     const countBadge = document.createElement('span');
                     countBadge.className = 'count-badge';
-                    countBadge.textContent = `${list.count} pozycji`;
+                    countBadge.textContent = `${list.count || list.items || 0} pozycji`;
                     listTitle.appendChild(countBadge);
                 }
                 
                 const listMeta = document.createElement('div');
                 listMeta.className = 'list-meta';
-                listMeta.textContent = `ID: ${list.slug}`;
+                listMeta.textContent = `ID: ${list.slug || list.id}`;
                 
                 listDetails.appendChild(listTitle);
                 listDetails.appendChild(listMeta);
@@ -352,12 +490,14 @@
             });
             
             updateGenerateButtonState();
+            debug('Zakończono wyświetlanie list');
         }
         
         // Aktualizacja stanu przycisku generowania linku
         function updateGenerateButtonState() {
             const checkedLists = document.querySelectorAll('#userLists input[type="checkbox"]:checked');
             generateLinkBtn.disabled = checkedLists.length === 0;
+            debug(`Liczba wybranych list: ${checkedLists.length}`);
         }
         
         // Obsługa zaznaczania/odznaczania wszystkich list
@@ -367,6 +507,7 @@
                 checkbox.checked = true;
             });
             updateGenerateButtonState();
+            debug('Zaznaczono wszystkie listy');
         });
         
         deselectAllBtn.addEventListener('click', () => {
@@ -375,6 +516,7 @@
                 checkbox.checked = false;
             });
             updateGenerateButtonState();
+            debug('Odznaczono wszystkie listy');
         });
         
         // Obsługa generowania linku instalacyjnego
@@ -387,11 +529,14 @@
                 return;
             }
             
+            debug(`Generowanie linku dla wybranych list: ${selectedSlugs.join(', ')}`);
+            
             // Łączymy slugi za pomocą przecinka
             const slugsParam = selectedSlugs.join(',');
             
             // Tworzymy link instalacyjny dla Fusion
             const installUrl = `https://${BACKEND_URL}/manifest.json?listSlug=${encodeURIComponent(slugsParam)}`;
+            debug(`Wygenerowany link: ${installUrl}`);
             
             // Wyświetlamy wynik
             installLinkDiv.textContent = installUrl;
@@ -405,6 +550,7 @@
             navigator.clipboard.writeText(linkText)
                 .then(() => {
                     copyLinkBtn.textContent = 'Skopiowano!';
+                    debug('Link skopiowany do schowka');
                     setTimeout(() => {
                         copyLinkBtn.textContent = 'Kopiuj link';
                     }, 2000);
@@ -413,6 +559,18 @@
                     showError('Nie udało się skopiować linku');
                 });
         });
+        
+        // W trybie debugowania, dodaj przycisk do czyszczenia logów
+        if (DEBUG_MODE) {
+            const clearBtn = document.createElement('button');
+            clearBtn.textContent = 'Wyczyść logi';
+            clearBtn.style.marginTop = '10px';
+            clearBtn.style.backgroundColor = '#95a5a6';
+            clearBtn.addEventListener('click', () => {
+                debugInfoDiv.textContent = '';
+            });
+            debugInfoDiv.parentNode.insertBefore(clearBtn, debugInfoDiv.nextSibling);
+        }
     </script>
 </body>
 </html>
