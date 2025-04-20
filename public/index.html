@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MDblist Importer dla Fusion</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+            padding: 20px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        
+        .container {
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 20px 30px;
+        }
+        
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 5px;
+            text-align: center;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #7f8c8d;
+            margin-bottom: 30px;
+        }
+        
+        .form-group {
+            margin-bottom: 25px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+        
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 15px;
+        }
+        
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        
+        button:hover {
+            background-color: #2980b9;
+        }
+        
+        button:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+        }
+        
+        #loadingSpinner {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+        
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-radius: 50%;
+            border-top: 4px solid #3498db;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        #listsContainer {
+            margin-top: 20px;
+            display: none;
+        }
+        
+        .list-item {
+            background-color: #f9f9f9;
+            border-radius: 4px;
+            padding: 12px 16px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .list-item:hover {
+            background-color: #f1f1f1;
+        }
+        
+        .list-details {
+            flex-grow: 1;
+            margin-left: 15px;
+        }
+        
+        .list-title {
+            font-weight: 600;
+            margin-bottom: 3px;
+        }
+        
+        .list-meta {
+            font-size: 14px;
+            color: #7f8c8d;
+        }
+        
+        #resultSection {
+            display: none;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+        
+        #installLink {
+            word-break: break-all;
+            background-color: #f7f9fa;
+            padding: 15px;
+            border: 1px dashed #ccc;
+            border-radius: 4px;
+            margin: 15px 0;
+        }
+        
+        .copy-btn {
+            background-color: #27ae60;
+            padding: 8px 15px;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+        
+        .copy-btn:hover {
+            background-color: #219955;
+        }
+        
+        .error-message {
+            color: #e74c3c;
+            background-color: #fadbd8;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+            display: none;
+        }
+        
+        .select-actions {
+            margin-bottom: 15px;
+        }
+        
+        .count-badge {
+            display: inline-block;
+            background-color: #3498db;
+            color: white;
+            border-radius: 12px;
+            padding: 2px 8px;
+            font-size: 12px;
+            margin-left: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>MDblist Importer dla Fusion</h1>
+        <p class="subtitle">Importuj swoje listy z MDblist do aplikacji Fusion</p>
+        
+        <div class="form-group">
+            <label for="apiKey">Twój klucz API MDBlist:</label>
+            <input type="text" id="apiKey" placeholder="Wprowadź swój klucz API z mdblist.com">
+            <p><small>Klucz API możesz uzyskać w ustawieniach swojego konta na <a href="https://mdblist.com/preferences" target="_blank">mdblist.com</a></small></p>
+        </div>
+        
+        <button id="loadListsBtn">Załaduj moje listy</button>
+        
+        <div id="errorMessage" class="error-message"></div>
+        
+        <div id="loadingSpinner">
+            <div class="spinner"></div>
+            <p>Ładowanie list...</p>
+        </div>
+        
+        <div id="listsContainer">
+            <h3>Wybierz listy do zaimportowania</h3>
+            
+            <div class="select-actions">
+                <button id="selectAllBtn">Zaznacz wszystkie</button>
+                <button id="deselectAllBtn">Odznacz wszystkie</button>
+            </div>
+            
+            <div id="userLists"></div>
+            
+            <button id="generateLinkBtn" disabled>Generuj link instalacyjny</button>
+        </div>
+        
+        <div id="resultSection">
+            <h3>Twój link instalacyjny do Fusion</h3>
+            <p>Kliknij poniższy link lub skopiuj go i otwórz w aplikacji Fusion, aby zainstalować dodatek z wybranymi listami:</p>
+            
+            <div id="installLink"></div>
+            
+            <button id="copyLinkBtn" class="copy-btn">Kopiuj link</button>
+        </div>
+    </div>
+    
+    <script>
+        // Stałe konfiguracyjne
+        const BACKEND_URL = 'https://mdblist-importer.pages.dev'; // Adres backendu
+        const PROXY_ENDPOINT = '/api/get-user-lists'; // Endpoint proxy
+        
+        // Referencje do elementów DOM
+        const apiKeyInput = document.getElementById('apiKey');
+        const loadListsBtn = document.getElementById('loadListsBtn');
+        const errorMessage = document.getElementById('errorMessage');
+        const loadingSpinner = document.getElementById('loadingSpinner');
+        const listsContainer = document.getElementById('listsContainer');
+        const userListsDiv = document.getElementById('userLists');
+        const selectAllBtn = document.getElementById('selectAllBtn');
+        const deselectAllBtn = document.getElementById('deselectAllBtn');
+        const generateLinkBtn = document.getElementById('generateLinkBtn');
+        const resultSection = document.getElementById('resultSection');
+        const installLinkDiv = document.getElementById('installLink');
+        const copyLinkBtn = document.getElementById('copyLinkBtn');
+        
+        // Zmienne globalne
+        let userLists = [];
+        
+        // Funkcje pomocnicze
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+            loadingSpinner.style.display = 'none';
+        }
+        
+        function hideError() {
+            errorMessage.style.display = 'none';
+        }
+        
+        // Obsługa ładowania list użytkownika
+        loadListsBtn.addEventListener('click', async () => {
+            const apiKey = apiKeyInput.value.trim();
+            
+            if (!apiKey) {
+                showError('Wprowadź swój klucz API MDBlist');
+                return;
+            }
+            
+            hideError();
+            loadingSpinner.style.display = 'block';
+            listsContainer.style.display = 'none';
+            resultSection.style.display = 'none';
+            
+            try {
+                // Wysyłamy żądanie do backendu (proxy)
+                const response = await fetch(`${BACKEND_URL}${PROXY_ENDPOINT}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ apiKey })
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Nie udało się pobrać list');
+                }
+                
+                if (!data.lists || data.lists.length === 0) {
+                    throw new Error('Nie znaleziono żadnych list dla tego klucza API');
+                }
+                
+                // Zapisujemy pobrane listy
+                userLists = data.lists;
+                
+                // Wyświetlamy listy użytkownika
+                displayUserLists(userLists);
+                
+                // Ukrywamy spinner ładowania i pokazujemy listy
+                loadingSpinner.style.display = 'none';
+                listsContainer.style.display = 'block';
+                
+            } catch (error) {
+                showError(error.message || 'Wystąpił błąd podczas ładowania list');
+            }
+        });
+        
+        // Funkcja wyświetlająca listy użytkownika
+        function displayUserLists(lists) {
+            userListsDiv.innerHTML = '';
+            
+            lists.forEach(list => {
+                const listItem = document.createElement('div');
+                listItem.className = 'list-item';
+                
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.id = `list-${list.slug}`;
+                checkbox.dataset.slug = list.slug;
+                checkbox.addEventListener('change', updateGenerateButtonState);
+                
+                const listDetails = document.createElement('div');
+                listDetails.className = 'list-details';
+                
+                const listTitle = document.createElement('div');
+                listTitle.className = 'list-title';
+                listTitle.textContent = list.name;
+                
+                if (list.count) {
+                    const countBadge = document.createElement('span');
+                    countBadge.className = 'count-badge';
+                    countBadge.textContent = `${list.count} pozycji`;
+                    listTitle.appendChild(countBadge);
+                }
+                
+                const listMeta = document.createElement('div');
+                listMeta.className = 'list-meta';
+                listMeta.textContent = `ID: ${list.slug}`;
+                
+                listDetails.appendChild(listTitle);
+                listDetails.appendChild(listMeta);
+                
+                listItem.appendChild(checkbox);
+                listItem.appendChild(listDetails);
+                
+                // Kliknięcie na element listy również zaznacza/odznacza checkbox
+                listDetails.addEventListener('click', () => {
+                    checkbox.checked = !checkbox.checked;
+                    updateGenerateButtonState();
+                });
+                
+                userListsDiv.appendChild(listItem);
+            });
+            
+            updateGenerateButtonState();
+        }
+        
+        // Aktualizacja stanu przycisku generowania linku
+        function updateGenerateButtonState() {
+            const checkedLists = document.querySelectorAll('#userLists input[type="checkbox"]:checked');
+            generateLinkBtn.disabled = checkedLists.length === 0;
+        }
+        
+        // Obsługa zaznaczania/odznaczania wszystkich list
+        selectAllBtn.addEventListener('click', () => {
+            const checkboxes = document.querySelectorAll('#userLists input[type="checkbox"]');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = true;
+            });
+            updateGenerateButtonState();
+        });
+        
+        deselectAllBtn.addEventListener('click', () => {
+            const checkboxes = document.querySelectorAll('#userLists input[type="checkbox"]');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = false;
+            });
+            updateGenerateButtonState();
+        });
+        
+        // Obsługa generowania linku instalacyjnego
+        generateLinkBtn.addEventListener('click', () => {
+            const checkedLists = document.querySelectorAll('#userLists input[type="checkbox"]:checked');
+            const selectedSlugs = Array.from(checkedLists).map(checkbox => checkbox.dataset.slug);
+            
+            if (selectedSlugs.length === 0) {
+                showError('Wybierz co najmniej jedną listę');
+                return;
+            }
+            
+            // Łączymy slugi za pomocą przecinka
+            const slugsParam = selectedSlugs.join(',');
+            
+            // Tworzymy link instalacyjny dla Fusion
+            const installUrl = `https://${BACKEND_URL}/manifest.json?listSlug=${encodeURIComponent(slugsParam)}`;
+            
+            // Wyświetlamy wynik
+            installLinkDiv.textContent = installUrl;
+            resultSection.style.display = 'block';
+        });
+        
+        // Obsługa kopiowania linku do schowka
+        copyLinkBtn.addEventListener('click', () => {
+            const linkText = installLinkDiv.textContent;
+            
+            navigator.clipboard.writeText(linkText)
+                .then(() => {
+                    copyLinkBtn.textContent = 'Skopiowano!';
+                    setTimeout(() => {
+                        copyLinkBtn.textContent = 'Kopiuj link';
+                    }, 2000);
+                })
+                .catch(() => {
+                    showError('Nie udało się skopiować linku');
+                });
+        });
+    </script>
+</body>
+</html>
