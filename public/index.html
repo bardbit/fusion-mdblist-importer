@@ -543,8 +543,16 @@ generateLinkBtn.addEventListener('click', () => {
     // Łączymy slugi za pomocą przecinka
     const slugsParam = selectedSlugs.join(',');
     
-    // Tworzymy link instalacyjny dla Fusion, dodając klucz API
-    const installUrl = `https://${BACKEND_URL}/manifest.json?listSlug=${encodeURIComponent(slugsParam)}&apiKey=${encodeURIComponent(apiKey)}`;
+    // POPRAWKA: Usuwamy protokół z BACKEND_URL jeśli już zawiera "http://" lub "https://"
+    let backendUrlWithoutProtocol = BACKEND_URL;
+    if (backendUrlWithoutProtocol.startsWith('http://')) {
+        backendUrlWithoutProtocol = backendUrlWithoutProtocol.substring(7);
+    } else if (backendUrlWithoutProtocol.startsWith('https://')) {
+        backendUrlWithoutProtocol = backendUrlWithoutProtocol.substring(8);
+    }
+    
+    // Tworzymy poprawny link instalacyjny dla Fusion z odpowiednim protokołem
+    const installUrl = `https://${backendUrlWithoutProtocol}/manifest.json?listSlug=${encodeURIComponent(slugsParam)}&apiKey=${encodeURIComponent(apiKey)}`;
     debug(`Wygenerowany link: ${installUrl}`);
     
     // Wyświetlamy wynik
