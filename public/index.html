@@ -523,7 +523,8 @@
         // Zmodyfikowana część kodu JavaScript z index.html
 
 // Funkcja generowania linku instalacyjnego z kluczem API
-generateLinkBtn.addEventListener('click', () => {
+// Zmodyfikowana funkcja generowania linku (używająca zapisanej konfiguracji)
+generateLinkBtn.addEventListener('click', async () => {
     const apiKey = apiKeyInput.value.trim();
     const checkedLists = document.querySelectorAll('#userLists input[type="checkbox"]:checked');
     const selectedSlugs = Array.from(checkedLists).map(checkbox => checkbox.dataset.slug);
@@ -543,7 +544,7 @@ generateLinkBtn.addEventListener('click', () => {
     // Łączymy slugi za pomocą przecinka
     const slugsParam = selectedSlugs.join(',');
     
-    // POPRAWKA: Usuwamy protokół z BACKEND_URL jeśli już zawiera "http://" lub "https://"
+    // Usuwamy protokół z BACKEND_URL jeśli już zawiera "http://" lub "https://"
     let backendUrlWithoutProtocol = BACKEND_URL;
     if (backendUrlWithoutProtocol.startsWith('http://')) {
         backendUrlWithoutProtocol = backendUrlWithoutProtocol.substring(7);
@@ -551,13 +552,51 @@ generateLinkBtn.addEventListener('click', () => {
         backendUrlWithoutProtocol = backendUrlWithoutProtocol.substring(8);
     }
     
-    // Tworzymy poprawny link instalacyjny dla Fusion z odpowiednim protokołem
-    const installUrl = `https://${backendUrlWithoutProtocol}/manifest.json?listSlug=${encodeURIComponent(slugsParam)}&apiKey=${encodeURIComponent(apiKey)}`;
-    debug(`Wygenerowany link: ${installUrl}`);
-    
-    // Wyświetlamy wynik
-    installLinkDiv.textContent = installUrl;
-    resultSection.style.display = 'block';
+    // Najpierw zapisujemy konfigurację na serwerze
+    try {
+        loadingSpinner.style.display = 'block';
+        generateLinkBtn.disabled = true;
+        
+        // Zapisz konfigurację na serwerze
+        const saveResponse = await fetch(`https://${backendUrlWithoutProtocol}/api/save-config`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                apiKey,
+                listSlug: slugsParam
+            })
+        });
+        
+        if (!saveResponse.ok) {
+            throw new Error(`Błąd podczas zapisywania konfiguracji: ${saveResponse.status}`);
+        }
+        
+        const responseData = await saveResponse.json();
+        
+        if (!responseData.configId) {
+            throw new Error('Nie otrzymano ID konfiguracji');
+        }
+        
+        const configId = responseData.configId;
+        debug(`Otrzymano ID konfiguracji: ${configId}`);
+        
+        // Tworzymy link instalacyjny z ID konfiguracji
+        const installUrl = `https://${backendUrlWithoutProtocol}/${configId}/manifest.json`;
+        debug(`Wygenerowany link: ${installUrl}`);
+        
+        // Wyświetlamy wynik
+        installLinkDiv.textContent = installUrl;
+        resultSection.style.display = 'block';
+        
+    } catch (error) {
+        console.error('Błąd:', error);
+        showError(`Nie udało się wygenerować linku: ${error.message}`);
+    } finally {
+        loadingSpinner.style.display = 'none';
+        generateLinkBtn.disabled = false;
+    }
 });
         
         // Obsługa kopiowania linku do schowka
