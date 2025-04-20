@@ -524,7 +524,8 @@
 
 // Funkcja generowania linku instalacyjnego z kluczem API
 // Zmodyfikowana funkcja generowania linku (używająca zapisanej konfiguracji)
-generateLinkBtn.addEventListener('click', async () => {
+// Zmodyfikowana funkcja generowania linku instalacyjnego
+generateLinkBtn.addEventListener('click', () => {
     const apiKey = apiKeyInput.value.trim();
     const checkedLists = document.querySelectorAll('#userLists input[type="checkbox"]:checked');
     const selectedSlugs = Array.from(checkedLists).map(checkbox => checkbox.dataset.slug);
@@ -552,51 +553,14 @@ generateLinkBtn.addEventListener('click', async () => {
         backendUrlWithoutProtocol = backendUrlWithoutProtocol.substring(8);
     }
     
-    // Najpierw zapisujemy konfigurację na serwerze
-    try {
-        loadingSpinner.style.display = 'block';
-        generateLinkBtn.disabled = true;
-        
-        // Zapisz konfigurację na serwerze
-        const saveResponse = await fetch(`https://${backendUrlWithoutProtocol}/api/save-config`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                apiKey,
-                listSlug: slugsParam
-            })
-        });
-        
-        if (!saveResponse.ok) {
-            throw new Error(`Błąd podczas zapisywania konfiguracji: ${saveResponse.status}`);
-        }
-        
-        const responseData = await saveResponse.json();
-        
-        if (!responseData.configId) {
-            throw new Error('Nie otrzymano ID konfiguracji');
-        }
-        
-        const configId = responseData.configId;
-        debug(`Otrzymano ID konfiguracji: ${configId}`);
-        
-        // Tworzymy link instalacyjny z ID konfiguracji
-        const installUrl = `https://${backendUrlWithoutProtocol}/${configId}/manifest.json`;
-        debug(`Wygenerowany link: ${installUrl}`);
-        
-        // Wyświetlamy wynik
-        installLinkDiv.textContent = installUrl;
-        resultSection.style.display = 'block';
-        
-    } catch (error) {
-        console.error('Błąd:', error);
-        showError(`Nie udało się wygenerować linku: ${error.message}`);
-    } finally {
-        loadingSpinner.style.display = 'none';
-        generateLinkBtn.disabled = false;
-    }
+    // Tworzymy link instalacyjny bezpośrednio do manifestu z parametrami w URL
+    const installUrl = `https://${backendUrlWithoutProtocol}/manifest.json?listSlug=${encodeURIComponent(slugsParam)}&apiKey=${encodeURIComponent(apiKey)}`;
+    
+    debug(`Wygenerowany link: ${installUrl}`);
+    
+    // Wyświetlamy wynik
+    installLinkDiv.textContent = installUrl;
+    resultSection.style.display = 'block';
 });
         
         // Obsługa kopiowania linku do schowka
